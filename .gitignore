@@ -1,0 +1,59 @@
+### Project ###
+logs/
+settings.yaml
+
+### Python ###
+.venv/
+.ruff_cache/
+.pytest_cache/
+__pycache__/
+dist/
+
+### Apache Maven ###
+target/
+!tests/oxy/main/**/target/
+!tests/oxy/test/**/target/
+!.mvn/wrapper/maven-wrapper.jar
+
+### Gradle ###
+.gradle/
+
+### Eclipse ###
+.settings/
+.project
+.classpath
+
+### IntelliJ IDEA ###
+.idea/
+*.iml
+*.ipr
+*.iws
+.idea
+out
+test-output
+atlassian-ide-plugin.xml
+
+### VS Code ###
+.vscode/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!tests/oxy/main/**/build/
+!tests/oxy/test/**/build/
+
+### MacOS ###
+.DS_Store
+
+### Others ###
+*.jar
+*.sw?
+*~
+.#*
+.*.md.html
+.flattened-pom.xml
+*.egg-info/

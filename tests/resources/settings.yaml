@@ -1,0 +1,5 @@
+project:
+  name: hello world
+  show-list:
+    - 1
+    - 2

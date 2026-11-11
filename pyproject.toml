@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling>=1.26,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "oxy-sdk"
+version = "1.0.0"
+description = "oxy commons sdk"
+readme = "README.md"
+requires-python = ">=3.15"
+authors = [
+  { name = "wangjz", email = "wangjz_vip@163.com" }
+]
+# 运行时依赖
+dependencies = [
+  # HTTP请求库。
+  "httpx[http2]>=0.28.1",
+  "requests>=2.32.0",
+  # 类型约束，数据校验。
+  "pydantic>=2.13.4",
+  # 配置解析。
+  "pydantic-settings>=2.14.2",
+  # 终端颜色输出库。可以让命令行输出带颜色，比如错误显示红色、成功显示绿色。
+  "colorama>=0.4.6",
+  # 密码学：DES 等对称算法用 pycryptodome；RSA/签名用 cryptography。
+  "pycryptodome>=3.23.0",
+  "cryptography>=49.0.0",
+  # YAML 解析库。
+  "pyyaml>=6.0.3",
+]
+# 分组打包依赖
+[project.optional-dependencies]
+wecom = [
+  "wecom-aibot-python-sdk>=1.0.2",
+]
+excel = [
+  "pandas>=3.0.3",
+]
+
+[dependency-groups]
+dev = [
+  "pandas-stubs>=3.0.5.260730",
+  "pytest>=8.0",
+  "respx>=0.21",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/oxy"]
