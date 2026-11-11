@@ -4,11 +4,10 @@ from functools import cached_property
 from json import JSONDecodeError
 from typing import Any, Callable
 
-from httpx import URL, Response, HTTPStatusError
+from httpx import URL, Request, Response, QueryParams
 from pydantic import BaseModel
 
 from oxy.utils.lang.charset import Charset
-
 
 ContentTypeName = "Content-Type"
 
@@ -19,8 +18,10 @@ class HttpUrl:
         host_or_url: str,
         *,
         path: str | Callable[[], str] | None = None,
-        query_params: dict | Callable[[], dict] | None = None,
+        query_params: QueryParams | Callable[[], QueryParams] | None = None,
     ):
+        if host_or_url is None or host_or_url == "":
+            raise ValueError("请输入`host_or_url`")
         self._host_or_url = host_or_url
         self._path = self.resolve_path(path)
         self._query_params = self.resolve_query_params(query_params)
@@ -36,29 +37,85 @@ class HttpUrl:
         )
 
     @staticmethod
-    def resolve_query_params(query_params: dict | Callable[[], dict] | None = None) -> dict | None:
-        return query_params() if callable(query_params) else query_params
+    def resolve_query_params(
+        query_params: QueryParams | Callable[[], QueryParams] | None = None,
+    ) -> QueryParams:
+        _query_params = query_params() if callable(query_params) else query_params
+        _query_params = _query_params or {}
+        return QueryParams(_query_params)
+
+    def format_url_path(self, **kwargs) -> HttpUrl:
+        """
+        替换路径上的参数。
+        例如：https://example.com/{a}/{b}?c={c} & {'a':1,'b':2,'c':3} ==> https://example.com/1/2?c=3
+        """
+        _host_or_url = self._host_or_url.format(**kwargs)
+        _path = self._path = (
+            self._path.format(**kwargs)
+            if  self._path is not None and self._path != "" else
+            None
+        )
+        return HttpUrl(
+            host_or_url=_host_or_url,
+            path=_path,
+            query_params=self._query_params,
+        )
+
+    @staticmethod
+    def merge_query_params(
+        path_params: QueryParams | None = None,
+        req_params: QueryParams | Callable[[], QueryParams] | None = None,
+    ) -> QueryParams:
+        _path_query_params = path_params or {}
+        _req_query_params = req_params() if callable(req_params) else req_params
+        _req_query_params = _req_query_params or {}
+        return (
+            path_params.merge(_req_query_params)
+            if path_params else
+            QueryParams(_req_query_params)
+        )
 
     @cached_property
     def url(self) -> URL:
-        if self._path is not None and self._query_params is not None:
-            return URL(url=self._host_or_url, path=self._path, params=self._query_params)
-        if self._path is not None and self._path != "":
-            return URL(url=self._host_or_url, path=self._path)
-        if self._query_params is not None:
-            return URL(url=self._host_or_url, params=self._query_params)
-        return URL(self._host_or_url)
+        _url_with_path = (
+            URL(url=self._host_or_url, path=self._path)
+            if self._path is not None and self._path != "" else
+            URL(url=self._host_or_url)
+        )
+        _path = _url_with_path.path
+        _host_path = str(_url_with_path.join(_path))
+        _query_params = self.merge_query_params(
+            path_params=_url_with_path.params,
+            req_params=self._query_params,
+        )
+        return URL(url=_host_path, params=_query_params)
 
-    def copy_with(self, *, path: str | None = None, query_params: dict | None = None) -> HttpUrl:
+    def copy_with(
+        self,
+        *,
+        path: str | None = None,
+        query_params: QueryParams | None = None
+    ) -> HttpUrl:
+        _path = path if path is not None and path != "" else self._path
+        _query_params = query_params if query_params else self._query_params
         return HttpUrl(
-            host_or_url=str(self.url),
-            path=path,
-            query_params=query_params,
+            host_or_url=self._host_or_url,
+            path=_path,
+            query_params=_query_params,
         )
 
     def __str__(self) -> str:
         return str(self.url)
 
+
+class RequestUrl(HttpUrl):
+    def __init__(
+        self,
+        host_or_url: str,
+        *,
+        path: str | Callable[[], str] | None = None,
+    ):
+        super().__init__(host_or_url, path=path)
 
 @dataclass(frozen=True)
 class HttpRequest:
@@ -70,23 +127,23 @@ class HttpRequest:
 class HttpRequestExtra:
     headers: dict[str, Any] = field(default_factory=dict)
     context: dict[str, Any] = field(default_factory=dict)
-    query_params: dict[str, Any] = field(default_factory=dict)
+    query_params: QueryParams | None = None
     resp_model: type[BaseModel] | None = None
     is_resp_json: bool = False
     is_resp_curl: bool = False
 
 
-@dataclass(frozen=True)
 class HttpResponse(Response):
     """
     Curl-debug stub response that mirrors the httpx Response attributes used by
     `_common_response_parser` (status_code / text / raise_for_status / json).
     """
-    status_code: int
-    text: str
-
-    def raise_for_status(self) -> Response:
-        raise HTTPStatusError("不支持状态校验", request=self.request, response=self)
+    def __init__(self, status_code: int, text: str, *, request: Request):
+        super().__init__(
+            status_code=status_code,
+            text=text,
+            request=request,
+        )
 
     def json(self, **kwargs: Any) -> Any:
         raise JSONDecodeError('不支持格式化', '{}', 0)

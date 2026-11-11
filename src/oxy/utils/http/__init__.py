@@ -9,7 +9,6 @@ from oxy.utils.http._model import (
 )
 from oxy.utils.http.api import (
     ResponseProcessor,
-    UrlSpec,
     make_response_processors,
     origin_response,
     get,
@@ -22,7 +21,6 @@ from oxy.utils.http import api
 __all__ = [
     'api',
     'ResponseProcessor',
-    'UrlSpec',
     'make_response_processors',
     'origin_response',
     'get',

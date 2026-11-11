@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 from oxy.utils.lang import timestamp_millis, gen_uuid_str, hide_error, split
+from oxy.utils.data._split import split as split_dataframe
 from oxy.utils.lang.path import traverse_folder
 from tests.config import project_resources
 
@@ -40,7 +41,7 @@ class LangTestCase(unittest.TestCase):
 
     def test_split(self):
         data_df = pd.DataFrame([{'a': 1}, {'a': 2}, {'a': 3}, {'a': 4}, {'a': 5}])
-        parts = list(split(data_df, 2))
+        parts = list(split_dataframe(data_df, 2))
         self.assertEqual(len(parts), 3)
         self.assertEqual(len(parts[0]), 2)
 
@@ -49,6 +50,23 @@ class LangTestCase(unittest.TestCase):
 
         num_parts = list(split((13, 51), 3))
         self.assertGreater(len(num_parts), 0)
+
+    def test_date_split_rejects_nonpositive_steps(self):
+        for step in (timedelta(0), timedelta(days=-1)):
+            with self.subTest(step=step), self.assertRaises(ValueError):
+                split((datetime(2024, 7, 10), datetime(2024, 7, 20)), step)
+
+    def test_date_split_boundaries(self):
+        start, end = datetime(2024, 7, 10), datetime(2024, 7, 20)
+        self.assertEqual(split((start, end), timedelta(days=3)), [
+            (start, datetime(2024, 7, 13)),
+            (datetime(2024, 7, 13), datetime(2024, 7, 16)),
+            (datetime(2024, 7, 16), datetime(2024, 7, 19)),
+            (datetime(2024, 7, 19), end),
+        ])
+        self.assertEqual(split((start, start), timedelta(days=1)), [])
+        self.assertEqual(split((end, start), timedelta(days=1)), [])
+        self.assertEqual(split((start, end), timedelta.max), [(start, end)])
 
 
 if __name__ == '__main__':

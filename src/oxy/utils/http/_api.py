@@ -5,12 +5,11 @@ from http import HTTPMethod
 from json import JSONDecodeError
 from typing import Any, Optional, Callable, Mapping
 
-import httpx
-from httpx import Response, HTTPStatusError
+from httpx import Response, HTTPStatusError, Request, AsyncClient, QueryParams
 from pydantic import BaseModel
 
 from oxy.utils.http._model import (
-    ContentType, ContentTypeName, HttpUrl, HttpResponse, HttpRequestExtra, HttpRequest,
+    ContentType, ContentTypeName, HttpUrl, HttpResponse, HttpRequestExtra, HttpRequest, RequestUrl,
 )
 from oxy.utils.lang import logger
 from oxy.utils.lang.charset import Charset
@@ -41,7 +40,7 @@ class ParsedRequest:
     url: HttpUrl
     headers: dict[str, Any]
     context: dict[str, Any]
-    req_data: str | bytes | dict[str, Any] | None = None
+    req_data: str | bytes | dict[str, Any] | QueryParams | None = None
     resp_model: type[BaseModel] | None = None
     is_resp_json: bool = False
     is_resp_curl: bool = False
@@ -51,7 +50,20 @@ class ParsedRequest:
         return str(self.url.url)
 
 
-async def _common_request_parser(url: HttpUrl, func, *args, **kwargs) -> ParsedRequest:
+def only_http_with_query_params(method: HTTPMethod):
+    return method in [
+        HTTPMethod.GET,
+        HTTPMethod.OPTIONS,
+        HTTPMethod.HEAD,
+    ]
+
+
+async def _common_request_parser(
+    url: RequestUrl,
+    method: HTTPMethod,
+    func,
+    *args, **kwargs
+) -> ParsedRequest:
     # 使用参数前，提前校验python语法规定
     _func_return = await func(*args, **kwargs)
 
@@ -75,13 +87,12 @@ async def _common_request_parser(url: HttpUrl, func, *args, **kwargs) -> ParsedR
             pass
 
     # 对URL的PATH占位符进行格式化
-    _url_path = url.url.path.format(**kwargs)
+    _url = url.copy_with(query_params=extra_data.query_params).format_url_path(**kwargs)
+    if only_http_with_query_params(method):
+        req_data = _url.url.params.merge(req_data or {})
 
     return ParsedRequest(
-        url=url.copy_with(
-            path=_url_path,
-            query_params=extra_data.query_params
-        ),
+        url=_url,
         headers=extra_data.headers,
         context=extra_data.context,
         req_data=req_data,
@@ -125,10 +136,14 @@ def _to_model(json_data: str | dict, model: type[BaseModel] | None):
 
 def _do_print_curl(
     url: str,
-    method: str,
-    req_data: str | bytes | dict[str, Any] | None,
+    method: HTTPMethod,
+    req_data: str | bytes | dict[str, Any] | QueryParams | None,
     headers,
 ) -> Response:
+    if only_http_with_query_params(method):
+        assert isinstance(req_data, QueryParams)
+        url = str(HttpUrl(url, query_params=req_data).url)
+        req_data = None
     headers_str = ''
     if headers is not None and len(headers) > 0:
         for _k, _v in headers.items():
@@ -142,8 +157,8 @@ def _do_print_curl(
             req_data_str += f"'{json.dumps(req_data, ensure_ascii=False, indent=2)}'"
         else:
             raise ValueError("CURL格式化req_data暂时只支持`str`和`dict`")
-    curl_resp_content = f"curl -L -X {method} '{url}' \\{headers_str}{req_data_str}"
-    return HttpResponse(200, curl_resp_content)
+    curl_resp_content = f"curl -L -X {str(method)} '{url}' \\{headers_str}{req_data_str}"
+    return HttpResponse(200, curl_resp_content, request=Request(method, url))
 
 
 async def _do_http(
@@ -151,30 +166,23 @@ async def _do_http(
     method: HTTPMethod = HTTPMethod.GET,
     content_type: ContentType = ContentType.ALL,
     charset: Charset = Charset.UTF_8,
-    req_data: str | bytes | dict[str, Any] | None = None,
+    req_data: str | bytes | dict[str, Any] | QueryParams | None = None,
     headers: dict[str, Any] | None = None,
 ) -> Response:
-    if headers is None:
-        headers = {}
-    async with httpx.AsyncClient(http2=True) as client:
-        _content_type: ContentType | None = None
-        # 优先取请求头参数
-        _req_content_types = {k: v for k, v in headers.items() if k.lower() == ContentTypeName.lower()}
-        for k, v in _req_content_types.items():
-            _content_type_0 = headers.pop(k)
-            if isinstance(_content_type_0, ContentType):
-                _content_type = _content_type_0
-                continue
-            _content_type_0 = ContentType.of(_content_type_0)
-            if _content_type_0:
-                _content_type = _content_type_0
+    headers = dict(headers) if headers is not None else {}
+    async with AsyncClient(http2=True) as client:
+        # 优先校验请求头参数
+        _req_content_types = {
+            k: v for k, v in headers.items() if k.lower() == ContentTypeName.lower()
+        }
+        if _req_content_types:
+            raise ValueError(f"请不要在`headers`中设置`{ContentTypeName}`，而应该设置在`content_type`")
         # 其次取方法参数
-        _content_type = _content_type if _content_type else content_type
-        _content_type = (_content_type if _content_type != ContentType.ALL else None)
+        _content_type = (content_type if content_type != ContentType.ALL else None)
 
         # 请求类型
-        is_http_get = (method == HTTPMethod.GET) or (method == HTTPMethod.HEAD)
-        if req_data is not None and not is_http_get:
+        is_only_query_params = only_http_with_query_params(method)
+        if req_data is not None and not is_only_query_params:
             if not _content_type :
                 raise ValueError("请输入`HTTP`的`Content-Type`")
             headers[ContentTypeName] = _content_type.with_charset(charset)
@@ -187,8 +195,8 @@ async def _do_http(
         _form_kv_data = None
         _json_data = None
         _content_data: str | bytes | None = None
-        if is_http_get:
-            assert req_data is None or isinstance(req_data, dict)
+        if is_only_query_params:
+            assert req_data is None or isinstance(req_data, (dict, QueryParams))
             _params = req_data
         else:
             if is_form_kv:
@@ -201,6 +209,7 @@ async def _do_http(
                     assert req_data is None or isinstance(req_data, dict)
                     _json_data = req_data
             else:
+                assert not isinstance(req_data, QueryParams)
                 _content_data = (
                     json.dumps(req_data)
                     if isinstance(req_data, dict)
@@ -218,7 +227,7 @@ async def _do_http(
 
 
 def _http(
-    url: HttpUrl,
+    url: str | RequestUrl | Callable[[], RequestUrl],
     method: HTTPMethod = HTTPMethod.GET,
     content_type: ContentType = ContentType.ALL,
     charset: Charset = Charset.UTF_8,
@@ -229,12 +238,7 @@ def _http(
 ) -> Callable[[Any], Any]:
     """
     HTTP 请求
-    >> 特殊参数：
-        - print_curl: 是否打印curl语句
-        - print_json: 是否打印json字符串
-        - hide_err: 是否隐藏异常，如果隐藏则返回None
     :param url: 地址，或返回地址的 callable（惰性解析，便于配置后加载）
-    :param http_call: 请求发起：(url, req_data, headers, print_curl) => Response
     :param success: 判断响应成功：(resp) => bool
     :param error_msg: 获取响应失败信息：(resp) => str
     :param resp_parser: 获取响应有效数据：(resp, context) => resp
@@ -242,8 +246,14 @@ def _http(
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
+            nonlocal url
+
+            _resolved_url = url() if callable(url) else url
+            _resolved_url = RequestUrl(_resolved_url) if isinstance(_resolved_url, str) else _resolved_url
+            assert isinstance(_resolved_url, RequestUrl), "请输入正确的`RequestUrl`"
+
             parsed_request: ParsedRequest = await _common_request_parser(
-                url, func, *args, **kwargs
+                _resolved_url, method, func, *args, **kwargs
             )
             try:
                 req_data_log = json.dumps(parsed_request.req_data, ensure_ascii=False)
@@ -258,7 +268,7 @@ def _http(
                     http_response=(
                         _do_print_curl(
                             url=str(parsed_request.full_path),
-                            method=str(method),
+                            method=method,
                             req_data=parsed_request.req_data,
                             headers=parsed_request.headers,
                         )

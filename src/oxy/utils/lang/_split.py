@@ -58,14 +58,13 @@ def _split_date(start: datetime, end: datetime, delta_t: timedelta = timedelta(d
     :param end: 结束时间，不包含这个时间点
     :param delta_t: 切割依据的时间间隔
     """
+    if delta_t <= timedelta(0):
+        raise ValueError('日期分割间隔必须大于零')
     periods = []
-    while True:
-        next_start = start + delta_t
-        if next_start >= end:
-            periods.append((start, end))
-            break
-        else:
-            periods.append((start, next_start))
+    while start < end:
+        # 先比较剩余时间，避免大步长导致 datetime 溢出。
+        next_start = end if delta_t >= end - start else start + delta_t
+        periods.append((start, next_start))
         start = next_start
     return periods
 

@@ -1,6 +1,6 @@
 import unittest
 
-from oxy.utils.collection import distinct, duplicate
+from oxy.utils.lang.collection import distinct, duplicate
 
 
 class CollectionTestCase(unittest.TestCase):

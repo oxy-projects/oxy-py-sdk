@@ -1,19 +1,16 @@
 from http import HTTPMethod
 from typing import Callable, Any, List, Optional, Literal
 
-from pydantic import BaseModel
-
 from oxy.utils.http._api import (
     _default_success,
     _default_error_msg,
     _default_response_parser,
     _http,
 )
-from oxy.utils.http._model import ContentType, HttpUrl
+from oxy.utils.http._model import ContentType, RequestUrl
 from oxy.utils.lang.charset import Charset
 
 ResponseProcessor = Literal["success", "error_msg", "parser"]
-UrlSpec = str | Callable[[], str]
 
 
 def make_response_processors(
@@ -45,11 +42,11 @@ def origin_response(
 
 
 def get(
-        url: UrlSpec, *,
-        success: Callable[[Any], bool] = _default_success,
-        error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
-        parser: Callable[[Any, Any], Any] = _default_response_parser,
-        model: type[BaseModel] | None = None,
+    url: str | RequestUrl | Callable[[], RequestUrl],
+    *,
+    success: Callable[[Any], bool] = _default_success,
+    error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
+    parser: Callable[[Any, Any], Any] = _default_response_parser,
 ) -> Callable[[Any], Any]:
     """
     GET 请求
@@ -59,12 +56,12 @@ def get(
         method=HTTPMethod.GET,
         success=success,
         error_msg=error_msg,
-        resp_parser=parser,
+        parser=parser,
     )
 
 
 def get_json(
-    url: str | HttpUrl | Callable[[], HttpUrl],
+    url: str | RequestUrl | Callable[[], RequestUrl],
     *,
     success: Callable[[Any], bool] = _default_success,
     error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
@@ -79,12 +76,12 @@ def get_json(
         content_type=ContentType.APPLICATION_JSON,
         success=success,
         error_msg=error_msg,
-        resp_parser=parser,
+        parser=parser,
     )
 
 
 def post(
-    url: str | HttpUrl | Callable[[], HttpUrl],
+    url: str | RequestUrl | Callable[[], RequestUrl],
     *,
     success: Callable[[Any], bool] = _default_success,
     error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
@@ -99,12 +96,12 @@ def post(
         content_type=ContentType.APPLICATION_FORM_URLENCODED,
         success=success,
         error_msg=error_msg,
-        resp_parser=parser,
+        parser=parser,
     )
 
 
 def post_json(
-    url: str | HttpUrl | Callable[[], HttpUrl],
+    url: str | RequestUrl | Callable[[], RequestUrl],
     *,
     success: Callable[[Any], bool] = _default_success,
     error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
@@ -119,19 +116,19 @@ def post_json(
         content_type=ContentType.APPLICATION_JSON,
         success=success,
         error_msg=error_msg,
-        resp_parser=parser,
+        parser=parser,
     )
 
 
 def http(
-    url: str | HttpUrl | Callable[[], HttpUrl],
+    url: str | RequestUrl | Callable[[], RequestUrl],
     method: HTTPMethod = HTTPMethod.GET,
     content_type: ContentType = ContentType.ALL,
     charset: Charset = Charset.UTF_8,
     *,
     success: Callable[[Any], bool] = _default_success,
     error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
-    resp_parser: Callable[[Any, Any], Any] = _default_response_parser,
+    parser: Callable[[Any, Any], Any] = _default_response_parser,
 ) -> Callable[[Any], Any]:
     """
     HTTP 请求
@@ -143,5 +140,5 @@ def http(
         charset=charset,
         success=success,
         error_msg=error_msg,
-        resp_parser=resp_parser,
+        resp_parser=parser,
     )
