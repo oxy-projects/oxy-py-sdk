@@ -2,7 +2,15 @@ import logging
 from datetime import datetime, timezone
 from logging import Formatter, Logger
 
-from colorama import Fore, Style
+try:
+    from colorama import Fore, Style
+except ModuleNotFoundError:
+    # Keep base utilities usable without optional terminal styling.
+    class Fore:
+        GREEN = BLUE = YELLOW = RED = ''
+
+    class Style:
+        RESET_ALL = ''
 
 
 def _choose_logging_color(record: logging.LogRecord):

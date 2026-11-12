@@ -1,11 +1,12 @@
+from __future__ import annotations
+
 from functools import wraps
 from pathlib import Path
-from typing import Callable, Any, Optional
+from typing import Callable, Any, Optional, TYPE_CHECKING
 
-import yaml
-from cryptography.hazmat.primitives.asymmetric import types
 
-from oxy.utils.codec import crypto
+if TYPE_CHECKING:
+    from cryptography.hazmat.primitives.asymmetric import types
 from oxy.utils.lang import IllegalArgumentException, logger
 
 log = logger.of(__name__)
@@ -118,6 +119,8 @@ def load_yaml(yaml_file: Path) -> dict:
     if not yaml_file.exists() or not yaml_file.is_file():
         log.error("请正确输入需要加载的yaml文件：%s", yaml_file)
         return {}
+    import yaml
+
     with open(yaml_file, 'r') as f:
         return yaml.safe_load(f)
 
@@ -126,8 +129,11 @@ def dump_yaml(settings: dict, yaml_file: Path):
     """
     配置保存到yaml文件中
     """
+    import yaml
+
     if not yaml_file.exists():
         yaml_file.touch()
+
     with open(yaml_file, 'w') as f:
         return yaml.safe_dump(settings, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
@@ -143,6 +149,8 @@ def encrypt_yaml(yaml_file: Path,
     :param public_key: 公钥，默认加载用户.ssh目录下的秘钥
     :param encrypt_file_ext: 加密文件的扩展名
     """
+    from oxy.utils.codec import crypto
+
     public_key = crypto.load_user_public_key() if public_key is None else public_key
     settings_enc = replace_settings(load_yaml(yaml_file),
                                     lambda val: crypto.encrypt_message(public_key, str(val))[1],
@@ -163,6 +171,8 @@ def decrypt_yaml(yaml_file: Path,
     :param private_key: 私钥，默认加载用户.ssh目录下的秘钥
     :param decrypt_file_ext: 解密文件的扩展名，默认为去掉.crypto后的扩展名
     """
+    from oxy.utils.codec import crypto
+
     private_key = crypto.load_user_private_key() if private_key is None else private_key
     settings_enc = replace_settings(load_yaml(yaml_file),
                                     lambda val: crypto.decrypt_message(private_key, str(val))[1],

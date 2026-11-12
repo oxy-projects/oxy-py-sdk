@@ -11,31 +11,34 @@ requires-python = ">=3.15"
 authors = [
   { name = "wangjz", email = "wangjz_vip@163.com" }
 ]
-# 运行时依赖
+# 基础工具仅使用标准库；功能依赖按需安装。
 dependencies = [
-  # HTTP请求库。
-  "httpx[http2]>=0.28.1",
-  "requests>=2.32.0",
-  # 类型约束，数据校验。
-  "pydantic>=2.13.4",
-  # 配置解析。
-  "pydantic-settings>=2.14.2",
   # 终端颜色输出库。可以让命令行输出带颜色，比如错误显示红色、成功显示绿色。
   "colorama>=0.4.6",
+]
+
+[project.optional-dependencies]
+codec = [
   # 密码学：DES 等对称算法用 pycryptodome；RSA/签名用 cryptography。
   "pycryptodome>=3.23.0",
   "cryptography>=49.0.0",
+]
+data = [
+  "pandas>=3.0.3",
+  "openpyxl>=3.1.5",
+]
+http = [
+  # HTTP请求库。
+  "httpx[http2]>=0.28.1",
+  # 类型约束，数据校验。
+  "pydantic>=2.13.4",
+]
+setting = [
   # YAML 解析库。
   "pyyaml>=6.0.3",
 ]
-# 分组打包依赖
-[project.optional-dependencies]
-wecom = [
-  "wecom-aibot-python-sdk>=1.0.2",
-]
-excel = [
-  "pandas>=3.0.3",
-]
+# 全部
+all = ["oxy-sdk[codec,data,http,setting]"]
 
 [dependency-groups]
 dev = [
