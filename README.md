@@ -1,54 +1,95 @@
-# oxy-sdk
+# oxy-py-sdk
 
 Python 通用工具库，提供 HTTP 请求、配置管理、加解密、日志和数据处理工具。
-发行包名为 `oxy-sdk`，Python 导入包名为 `oxy`。需要 Python 3.15 或更高版本。
+发行包名为 `oxy-py-sdk`，Python 导入包名为 `oxy`。支持 Python 3.15 及以上版本。
 
 ## 按需安装
 
-基础安装不引入第三方运行时依赖，可使用 `oxy.utils.lang`、集合工具及 MD5/SHA256：
+基础包包含日志、集合、通用语言工具及 MD5/SHA256，无第三方运行时依赖。
+未安装 colorama 时日志使用无颜色输出；安装 `[all]` 会同时安装 colorama，启用彩色日志。
+其他功能按需安装：
 
 ```bash
-pip install oxy-sdk
-pip install "oxy-sdk[codec]"    # DES、RSA、签名等加解密
-pip install "oxy-sdk[data]"     # DataFrame、Excel 读写及缓存
-pip install "oxy-sdk[http]"     # HTTP 请求
-pip install "oxy-sdk[setting]"  # YAML 配置读写
-pip install "oxy-sdk[http,setting]"  # 组合安装
-pip install "oxy-sdk[setting,codec]" # 配置文件加解密
-pip install "oxy-sdk[all]"      # 全部功能，含 wecom
+pip install oxy-py-sdk
+pip install "oxy-py-sdk[codec]"        # DES、RSA、签名等加解密
+pip install "oxy-py-sdk[data]"         # DataFrame、Excel 读写及缓存
+pip install "oxy-py-sdk[http]"         # HTTP 请求
+pip install "oxy-py-sdk[setting]"      # YAML 配置读写
+pip install "oxy-py-sdk[http,setting]" # 自由组合
+pip install "oxy-py-sdk[setting,codec]" # 配置文件加解密
+pip install "oxy-py-sdk[all]"          # 全部功能依赖，含彩色日志
 ```
 
-`setting` 的字典读取、转换仅使用标准库；YAML 读写需要 `setting`，
-配置文件加解密还需要 `codec`。
-`excel` 保留为 `data` 的兼容别名，`wecom` 继续提供企微机器人 SDK。
-日志在未安装 colorama 时使用无颜色输出。
+| 分组 | 依赖 | 模块 |
+| --- | --- | --- |
+| codec | pycryptodome、cryptography | `oxy.utils.codec` |
+| data | pandas、openpyxl | `oxy.utils.data`、`oxy.utils.data.cache` |
+| http | httpx（含 HTTP/2）、pydantic | `oxy.utils.http` |
+| setting | pyyaml | `oxy.utils.setting` |
 
-## 开发环境
+`setting` 的字典读取和转换不需要 YAML 依赖；配置文件加解密需要同时安装 `setting` 和 `codec`。
+MD5/SHA256 使用标准库，无需安装 `codec`。DES 和 MD5 主要用于兼容现有协议。
+
+## 使用示例
+
+基础工具：
+
+```python
+from oxy.utils.lang import gen_uuid_str
+from oxy.utils.lang.collection import distinct
+
+print(gen_uuid_str())
+print(distinct([1, 1, 2]))  # [1, 2]
+```
+
+安装 `oxy-py-sdk[http]` 后：
+
+```python
+import asyncio
+from oxy.utils.http import api
+
+@api.get("https://httpbin.org/get")
+async def fetch():
+    return {"q": "python"}
+
+result = asyncio.run(fetch())
+```
+
+安装 `oxy-py-sdk[setting]` 后：
+
+```python
+from pathlib import Path
+from oxy.utils.setting import dump_yaml, load_yaml
+
+dump_yaml({"project": {"name": "demo"}}, Path("settings.yaml"))
+settings = load_yaml(Path("settings.yaml"))
+```
+
+## 开发与验证
 
 ```bash
 uv sync --locked --all-extras
-uv run --all-extras python -c "import oxy; print(oxy.__file__)"
-# 只安装指定功能
+uv run --locked --all-extras pytest -q
+uv build
+uvx twine check --strict dist/*
+```
+
+测试不需要真实外部服务，HTTP 请求使用模拟传输。
+
+只安装指定功能：
+
+```bash
 uv sync --locked --extra http --extra setting
 ```
 
-## 测试与构建
+修改依赖后运行 `uv lock` 并提交 `pyproject.toml` 与 `uv.lock`。
 
-```bash
-uv run --all-extras pytest
-uv build
-```
+## 发布
 
-部分测试依赖本地配置或外部服务，运行前请检查 `tests/config.py` 和对应测试文件。
+完整配置及操作步骤见 [发布说明](RELEASING.md)，版本记录见 [CHANGELOG](CHANGELOG.md)。
+发布 GitHub Release 后自动构建并发布到 PyPI。
+版本来源为 `pyproject.toml`，Release 标签必须是 `v` 加版本号，例如 `v1.0.0`。
 
-## 项目结构
+## 许可证
 
-```text
-src/oxy/          # 可发布的 Python 包
-tests/           # 测试及资源文件
-pyproject.toml   # 项目元数据、依赖和构建配置
-uv.lock          # uv 管理的依赖锁文件，提交到版本控制
-.python-version  # 开发环境 Python 版本
-```
-
-修改依赖后执行 `uv lock`，并提交更新后的 `pyproject.toml` 和 `uv.lock`。
+[MIT](LICENSE)，Copyright (c) 2026 wangjz。

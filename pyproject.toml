@@ -1,21 +1,28 @@
 [build-system]
-requires = ["hatchling>=1.26,<2"]
+requires = ["hatchling>=1.27,<2"]
 build-backend = "hatchling.build"
 
 [project]
-name = "oxy-sdk"
+name = "oxy-py-sdk"
 version = "1.0.0"
-description = "oxy commons sdk"
+description = "Python utilities for HTTP, configuration, cryptography, and data processing"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["http", "configuration", "cryptography", "utilities"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.15",
+  "Operating System :: OS Independent",
+  "Typing :: Typed",
+]
 requires-python = ">=3.15"
 authors = [
   { name = "wangjz", email = "wangjz_vip@163.com" }
 ]
 # 基础工具仅使用标准库；功能依赖按需安装。
-dependencies = [
-  # 终端颜色输出库。可以让命令行输出带颜色，比如错误显示红色、成功显示绿色。
-  "colorama>=0.4.6",
-]
+dependencies = []
 
 [project.optional-dependencies]
 codec = [
@@ -38,7 +45,17 @@ setting = [
   "pyyaml>=6.0.3",
 ]
 # 全部
-all = ["oxy-sdk[codec,data,http,setting]"]
+all = [
+  # 终端颜色输出库。可以让命令行输出带颜色，比如错误显示红色、成功显示绿色。
+  "colorama>=0.4.6",
+  "oxy-py-sdk[codec,data,http,setting]",
+]
+
+[project.urls]
+Homepage = "https://github.com/oxy-projects/oxy-py-sdk"
+Repository = "https://github.com/oxy-projects/oxy-py-sdk"
+Issues = "https://github.com/oxy-projects/oxy-py-sdk/issues"
+Changelog = "https://github.com/oxy-projects/oxy-py-sdk/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
