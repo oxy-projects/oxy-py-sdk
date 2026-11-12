@@ -86,10 +86,10 @@ uv sync --locked --extra http --extra setting
 
 ## 发布
 
-完整配置及操作步骤见 [发布说明](RELEASING.md)，版本记录见 [CHANGELOG](CHANGELOG.md)。
+完整配置及操作步骤见 [发布说明](https://github.com/oxy-projects/oxy-py-sdk/main/RELEASING.md)，版本记录见 [CHANGELOG](https://github.com/oxy-projects/oxy-py-sdk/blob/main/CHANGELOG.md)。
 发布 GitHub Release 后自动构建并发布到 PyPI。
 版本来源为 `pyproject.toml`，Release 标签必须是 `v` 加版本号，例如 `v1.0.0`。
 
 ## 许可证
 
-[MIT](LICENSE)，Copyright (c) 2026 wangjz。
+[MIT](https://github.com/oxy-projects/oxy-py-sdk/blob/main/LICENSE)，Copyright (c) 2026 wangjz。
