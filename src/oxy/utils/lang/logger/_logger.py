@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime, timezone
 from logging import Formatter, Logger, _FormatStyle
 from typing import Mapping, Any
 
@@ -30,15 +29,12 @@ def _choose_logging_color(record: logging.LogRecord):
             return None
 
 
-_default_zone = datetime.now().astimezone().tzinfo
-
-
 class OxyFormatter(Formatter):
 
     def __init__(
         self,
-        fmt: str | None = "%(asctime)s | %(levelname)s | [%(name)s.%(funcName)s] - %(message)s",
-        datefmt: str | None = None,
+        fmt: str | None = "%(asctime)s.%(msecs)03d | %(levelname)s | [%(name)s.%(funcName)s] - %(message)s",
+        datefmt: str | None = "%Y-%m-%d %H:%M:%S",
         style: _FormatStyle = "%",
         validate: bool = True,
         *,
@@ -46,14 +42,8 @@ class OxyFormatter(Formatter):
     ):
         super().__init__(fmt, datefmt, style, validate, defaults=defaults)
 
-    def formatTime(self, record, datefmt=None):
-        """
-        重写日志框架的日期格式化（仅作用于本 Formatter，不 monkeypatch 全局）。
-        """
-        ct = datetime.fromtimestamp(record.created, tz=timezone.utc).astimezone(_default_zone)
-        if datefmt:
-            return ct.strftime(datefmt)
-        return ct.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+
+class OxyConsoleFormatter(OxyFormatter):
 
     def formatMessage(self, record: logging.LogRecord):
         msg = self._style.format(record)
@@ -61,14 +51,6 @@ class OxyFormatter(Formatter):
         if _clr is None:
             return msg
         return _clr + msg + Style.RESET_ALL
-
-
-_handler = logging.StreamHandler()
-_handler.setFormatter(OxyFormatter())
-logging.basicConfig(
-    level=logging.INFO,
-    handlers=[_handler],
-)
 
 
 def of(name=None) -> Logger:
