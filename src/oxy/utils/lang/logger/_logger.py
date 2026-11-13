@@ -33,7 +33,7 @@ class OxyFormatter(Formatter):
 
     def __init__(
         self,
-        fmt: str | None = "%(asctime)s.%(msecs)03d | %(levelname)s | [%(name)s.%(funcName)s] - %(message)s",
+        fmt: str | None = "%(asctime)s.%(msecs)03d %(levelname)s | [%(name)s.%(funcName)s] | %(threadName)s.%(thread)d - %(message)s",
         datefmt: str | None = "%Y-%m-%d %H:%M:%S",
         style: Literal["%", "{", "$"] = "%",
         validate: bool = True,
