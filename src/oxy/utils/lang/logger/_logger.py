@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timezone
-from logging import Formatter, Logger
+from logging import Formatter, Logger, _FormatStyle
+from typing import Mapping, Any
 
 try:
     from colorama import Fore, Style
@@ -33,6 +34,18 @@ _default_zone = datetime.now().astimezone().tzinfo
 
 
 class OxyFormatter(Formatter):
+
+    def __init__(
+        self,
+        fmt: str | None = "%(asctime)s | %(levelname)s | [%(name)s.%(funcName)s] - %(message)s",
+        datefmt: str | None = None,
+        style: _FormatStyle = "%",
+        validate: bool = True,
+        *,
+        defaults: Mapping[str, Any] | None = None,
+    ):
+        super().__init__(fmt, datefmt, style, validate, defaults=defaults)
+
     def formatTime(self, record, datefmt=None):
         """
         重写日志框架的日期格式化（仅作用于本 Formatter，不 monkeypatch 全局）。
@@ -54,7 +67,6 @@ _handler = logging.StreamHandler()
 _handler.setFormatter(OxyFormatter())
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | [%(name)s.%(funcName)s] - %(message)s",
     handlers=[_handler],
 )
 
