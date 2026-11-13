@@ -1,6 +1,6 @@
 import logging
-from logging import Formatter, Logger, _FormatStyle
-from typing import Mapping, Any
+from logging import Formatter, Logger
+from typing import Mapping, Any, Literal
 
 try:
     from colorama import Fore, Style
@@ -35,7 +35,7 @@ class OxyFormatter(Formatter):
         self,
         fmt: str | None = "%(asctime)s.%(msecs)03d | %(levelname)s | [%(name)s.%(funcName)s] - %(message)s",
         datefmt: str | None = "%Y-%m-%d %H:%M:%S",
-        style: _FormatStyle = "%",
+        style: Literal["%", "{", "$"] = "%",
         validate: bool = True,
         *,
         defaults: Mapping[str, Any] | None = None,
