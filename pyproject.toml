@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "oxy-py-sdk"
-version = "1.0.0"
+version = "1.0.1"
 description = "Python utilities for HTTP, configuration, cryptography, and data processing"
 readme = "README.md"
 license = "MIT"

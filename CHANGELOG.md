@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1 - 2026-11-13
+
+- **不兼容变更**：导入日志模块不再调用 `logging.basicConfig`，不再自动为根日志器添加控制台处理器或设置 INFO 级别；应用需自行配置日志输出。
+- **不兼容变更**：`OxyFormatter` 改为普通文本格式化器，彩色输出移至新增的 `OxyConsoleFormatter`。
+- 默认时间格式为 `YYYY-MM-DD HH:MM:SS.mmm`，通过 `%(msecs)03d` 输出毫秒。
+- 移除自定义 `formatTime` 实现，改用标准库 `logging.Formatter` 的时间转换及 `datefmt` 行为。
+- 需要彩色控制台日志时，从 `oxy.utils.lang.logger._logger` 导入 `OxyConsoleFormatter` 并显式配置处理器；颜色支持需安装 `colorama`。
+
 ## 1.0.0 - 2026-11-12
 
 - 首个正式版本，发行包名为 `oxy-py-sdk`，Python 导入包名为 `oxy`。
