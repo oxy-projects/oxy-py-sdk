@@ -15,7 +15,7 @@
 
 ```bash
 uv sync --locked --all-extras
-uv run --locked --all-extras pytest -q
+uv run --locked --all-extras python -m pytest -q
 uv build --out-dir dist
 uvx twine check --strict dist/*
 ```

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.3 - 2026-11-14
+
+- 为 HTTP 装饰器 `get`、`get_json`、`post`、`post_json` 和 `http` 新增 `log` 参数，支持通过 `HttpLogs.DEFAULT`、`HttpLogs.ALL`、`HttpLogs.NONE` 控制请求与成功响应的 DEBUG 日志；默认仅记录请求，HTTP 状态错误仍记录 ERROR 日志。
+- 从 `oxy.utils.http` 公开导出 `HttpLogs`，支持 `from oxy.utils.http import HttpLogs`。
+- 新增成功响应日志，包含请求 URL、请求数据和解析后的响应数据；响应数据无法 JSON 序列化时回退为原始值。
+- 新增 `HttpContext` 类型别名，明确 HTTP 请求上下文和响应解析回调的类型标注。
+- 默认日志格式增加线程名称及线程 ID，并调整分隔符；自定义 `fmt` 的用法不变。
+
 ## 1.0.2 - 2026-11-13
 
 - 修复 Python 3.15 下导入日志模块时，因依赖 `logging._FormatStyle` 导致的 `ImportError`。

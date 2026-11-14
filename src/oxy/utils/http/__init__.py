@@ -1,11 +1,11 @@
 from oxy.utils.http._model import (
     ContentType,
-    ContentTypeName,
+    MediaType,
+    HttpLogs,
     HttpRequest,
     HttpRequestExtra,
     HttpResponse,
-    HttpUrl,
-    MediaType,
+    RequestUrl,
 )
 from oxy.utils.http.api import (
     ResponseProcessor,
@@ -16,10 +16,8 @@ from oxy.utils.http.api import (
     post,
     post_json,
 )
-from oxy.utils.http import api
 
 __all__ = [
-    'api',
     'ResponseProcessor',
     'make_response_processors',
     'origin_response',
@@ -27,11 +25,11 @@ __all__ = [
     'get_json',
     'post',
     'post_json',
-    'HttpResponse',
+    'ContentType',
+    'MediaType',
+    'HttpLogs',
     'HttpRequest',
     'HttpRequestExtra',
-    'HttpUrl',
-    'ContentType',
-    'ContentTypeName',
-    'MediaType',
+    'HttpResponse',
+    'RequestUrl',
 ]

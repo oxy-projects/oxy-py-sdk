@@ -55,6 +55,19 @@ async def fetch():
 result = asyncio.run(fetch())
 ```
 
+HTTP 日志通过装饰器的 `log` 参数控制，需由应用配置日志处理器并启用 DEBUG 级别：
+
+```python
+from oxy.utils.http import HttpLogs
+
+@api.get("https://httpbin.org/get", log=HttpLogs.ALL)
+async def fetch_with_logs():
+    return {"q": "python"}
+```
+
+`HttpLogs.DEFAULT`（默认值）仅记录请求，`HttpLogs.ALL` 同时记录请求和成功响应，
+`HttpLogs.NONE` 关闭这两类日志。HTTP 状态错误仍记录 ERROR 日志。
+
 安装 `oxy-py-sdk[setting]` 后：
 
 ```python
@@ -69,7 +82,7 @@ settings = load_yaml(Path("settings.yaml"))
 
 ```bash
 uv sync --locked --all-extras
-uv run --locked --all-extras pytest -q
+uv run --locked --all-extras python -m pytest -q
 uv build
 uvx twine check --strict dist/*
 ```
