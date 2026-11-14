@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.5 - 2026-11-14
+
+- HTTP 响应模型 `resp_model` 支持 Pydantic `TypeAdapter` 实例，可通过 `TypeAdapter(list[Item])` 等方式校验和转换响应；JSON 字符串使用 `validate_json`，其他输入使用 `validate_python`。
+- **返回值行为变更**：直接使用 `RootModel` 作为响应模型时，转换结果自动解包为 `.root`，不再返回 `RootModel` 实例；例如 `RootModel[list[Item]]` 现在直接返回 `list[Item]`，调用方应移除原有的 `.root` 访问。
+- 补充列表、空列表、JSON 字符串、标量、可空类型及校验失败的回归测试。
+
 ## 1.0.4 - 2026-11-14
 
 - HTTP 响应模型转换支持列表输入，可使用 Pydantic `RootModel[list[...]]` 校验和转换列表响应。
