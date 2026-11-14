@@ -1,6 +1,6 @@
 from oxy.utils.http import make_response_processors, origin_response
 from oxy.utils.http._api import _to_model
-from pydantic import BaseModel, RootModel, ValidationError
+from pydantic import BaseModel, RootModel, TypeAdapter, ValidationError
 import pytest
 
 
@@ -8,17 +8,41 @@ class Item(BaseModel):
     value: int
 
 
-def test_response_model_list():
-    result = _to_model([{'value': '42'}], RootModel[list[Item]])
-    assert result.root == [Item(value=42)]
-    assert _to_model([], RootModel[list[Item]]).root == []
+@pytest.mark.parametrize('data', [[{'value': '42'}], '[{"value": "42"}]'])
+def test_response_model_list(data):
+    assert _to_model(data, RootModel[list[Item]]) == [Item(value=42)]
+
+
+@pytest.mark.parametrize('data', [[], '[]'])
+def test_response_model_empty_list(data):
+    assert _to_model(data, RootModel[list[Item]]) == []
+
+
+@pytest.mark.parametrize('data', [[{'value': 'invalid'}], '[{"value": "invalid"}]'])
+def test_response_model_list_validation(data):
     with pytest.raises(ValidationError):
-        _to_model([{'value': 'invalid'}], RootModel[list[Item]])
+        _to_model(data, RootModel[list[Item]])
 
 
 @pytest.mark.parametrize('data', [{'value': '42'}, '{"value": "42"}'])
 def test_response_model_existing_inputs(data):
     assert _to_model(data, Item) == Item(value=42)
+
+
+@pytest.mark.parametrize('data', [[{'value': '42'}], '[{"value": "42"}]'])
+def test_response_type_adapter_list(data):
+    assert _to_model(data, TypeAdapter(list[Item])) == [Item(value=42)]
+
+
+def test_response_type_adapter_validation():
+    assert _to_model({'value': '42'}, TypeAdapter(Item)) == Item(value=42)
+    assert _to_model([], TypeAdapter(list[Item])) == []
+    assert _to_model(42, TypeAdapter(int)) == 42
+    assert _to_model(None, TypeAdapter(int | None)) is None
+    with pytest.raises(ValidationError):
+        _to_model([{'value': 'invalid'}], TypeAdapter(list[Item]))
+    with pytest.raises(ValidationError):
+        _to_model('invalid json', TypeAdapter(list[Item]))
 
 
 def test_response_model_passthrough_and_unsupported_type():

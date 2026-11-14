@@ -5,7 +5,7 @@ from json import JSONDecodeError
 from typing import Any, Callable
 
 from httpx import URL, Request, Response, QueryParams
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from oxy.utils.lang.charset import Charset
 
@@ -145,7 +145,7 @@ class HttpRequestExtra:
     headers: dict[str, Any] = field(default_factory=dict)
     context: HttpContext = field(default_factory=dict)
     query_params: QueryParams | None = None
-    resp_model: type[BaseModel] | None = None
+    resp_model: type[BaseModel] | TypeAdapter[Any] | None = None
     is_resp_json: bool = False
     is_resp_curl: bool = False
 

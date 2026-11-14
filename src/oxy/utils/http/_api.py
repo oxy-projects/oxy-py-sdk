@@ -6,7 +6,7 @@ from json import JSONDecodeError
 from typing import Any, Optional, Callable, Mapping
 
 from httpx import Response, HTTPStatusError, Request, AsyncClient, QueryParams
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter, RootModel
 
 from oxy.utils.http._model import (
     ContentType, ContentTypeName, HttpUrl, HttpResponse, HttpRequestExtra,
@@ -42,7 +42,7 @@ class ParsedRequest:
     headers: dict[str, Any]
     context: HttpContext
     req_data: str | bytes | dict[str, Any] | QueryParams | None = None
-    resp_model: type[BaseModel] | None = None
+    resp_model: type[BaseModel] | TypeAdapter[Any] | None = None
     is_resp_json: bool = False
     is_resp_curl: bool = False
 
@@ -109,7 +109,7 @@ def _common_response_parser(
     success: Callable[[Any], bool] = _default_success,
     error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
     resp_parser: Callable[[Any, Any], Any] = _default_response_parser,
-    model: type[BaseModel] | None = None,
+    model: type[BaseModel] | TypeAdapter[Any] | None = None,
 ) -> Any:
     # 非2xx状态校验
     http_response.raise_for_status()
@@ -124,14 +124,22 @@ def _common_response_parser(
         raise HTTPStatusError(f'🐞 {error_msg(response)}', request=http_response.request, response=http_response)
 
 
-def _to_model(json_data: str | dict | list[dict], model: type[BaseModel] | None):
+def _to_model(json_data: Any, model: type[BaseModel] | TypeAdapter[Any] | None):
     if model is None:
         return json_data
+    if isinstance(model, TypeAdapter):
+        return (
+            model.validate_json(json_data)
+            if isinstance(json_data, str) else
+            model.validate_python(json_data)
+        )
     if isinstance(json_data, str):
-        return model.model_validate_json(json_data)
-    if isinstance(json_data, dict | list):
-        return model.model_validate(json_data)
-    raise TypeError(f"当前类型不支持转 model：{type(json_data).__name__}")
+        _m = model.model_validate_json(json_data)
+    elif isinstance(json_data, dict | list):
+        _m = model.model_validate(json_data)
+    else:
+        raise TypeError(f"当前类型不支持转 model：{type(json_data).__name__}")
+    return _m.root if isinstance(_m, RootModel) else _m
 
 
 def _do_print_curl(
