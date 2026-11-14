@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.4 - 2026-11-14
+
+- HTTP 响应模型转换支持列表输入，可使用 Pydantic `RootModel[list[...]]` 校验和转换列表响应。
+- 未指定响应模型时继续原样返回数据；字典和 JSON 字符串的转换方式保持不变。
+- 不支持的输入类型改为抛出 `TypeError`，错误信息包含实际输入类型。
+
 ## 1.0.3 - 2026-11-14
 
 - 为 HTTP 装饰器 `get`、`get_json`、`post`、`post_json` 和 `http` 新增 `log` 参数，支持通过 `HttpLogs.DEFAULT`、`HttpLogs.ALL`、`HttpLogs.NONE` 控制请求与成功响应的 DEBUG 日志；默认仅记录请求，HTTP 状态错误仍记录 ERROR 日志。
