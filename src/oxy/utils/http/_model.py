@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from oxy.utils.lang.charset import Charset
 
 ContentTypeName = "Content-Type"
+type HttpContext = dict[str, Any]
 
 
 class HttpUrl:
@@ -117,6 +118,22 @@ class RequestUrl(HttpUrl):
     ):
         super().__init__(host_or_url, path=path)
 
+
+@dataclass(frozen=True)
+class HttpLog:
+    req: bool = True
+    resp: bool = False
+
+
+class HttpLogs(HttpLog, Enum):
+    DEFAULT = True, False
+    """默认：打印请求，不打印响应"""
+    ALL = True, True
+    """全部打印"""
+    NONE = False, False
+    """全部不打印"""
+
+
 @dataclass(frozen=True)
 class HttpRequest:
     data: str | bytes | dict[str, Any] | None = None
@@ -126,7 +143,7 @@ class HttpRequest:
 @dataclass(frozen=True)
 class HttpRequestExtra:
     headers: dict[str, Any] = field(default_factory=dict)
-    context: dict[str, Any] = field(default_factory=dict)
+    context: HttpContext = field(default_factory=dict)
     query_params: QueryParams | None = None
     resp_model: type[BaseModel] | None = None
     is_resp_json: bool = False

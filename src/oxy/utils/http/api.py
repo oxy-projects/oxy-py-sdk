@@ -7,7 +7,7 @@ from oxy.utils.http._api import (
     _default_response_parser,
     _http,
 )
-from oxy.utils.http._model import ContentType, RequestUrl
+from oxy.utils.http._model import ContentType, RequestUrl, HttpContext, HttpLogs
 from oxy.utils.lang.charset import Charset
 
 ResponseProcessor = Literal["success", "error_msg", "parser"]
@@ -17,7 +17,7 @@ def make_response_processors(
     *,
     success: Callable[[Any], bool] = _default_success,
     error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
-    parser: Callable[[Any, Any], Any] = _default_response_parser,
+    parser: Callable[[Any, HttpContext], Any] = _default_response_parser,
     ignores: Optional[ResponseProcessor | List[ResponseProcessor]] = None,
 ) -> dict:
     """
@@ -46,7 +46,8 @@ def get(
     *,
     success: Callable[[Any], bool] = _default_success,
     error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
-    parser: Callable[[Any, Any], Any] = _default_response_parser,
+    parser: Callable[[Any, HttpContext], Any] = _default_response_parser,
+    log: HttpLogs = HttpLogs.DEFAULT,
 ) -> Callable[[Any], Any]:
     """
     GET 请求
@@ -57,6 +58,7 @@ def get(
         success=success,
         error_msg=error_msg,
         parser=parser,
+        log=log,
     )
 
 
@@ -65,7 +67,8 @@ def get_json(
     *,
     success: Callable[[Any], bool] = _default_success,
     error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
-    parser: Callable[[Any, Any], Any] = _default_response_parser,
+    parser: Callable[[Any, HttpContext], Any] = _default_response_parser,
+    log: HttpLogs = HttpLogs.DEFAULT,
 ) -> Callable[[Any], Any]:
     """
     GET JSON 请求
@@ -77,6 +80,7 @@ def get_json(
         success=success,
         error_msg=error_msg,
         parser=parser,
+        log=log,
     )
 
 
@@ -85,7 +89,8 @@ def post(
     *,
     success: Callable[[Any], bool] = _default_success,
     error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
-    parser: Callable[[Any, Any], Any] = _default_response_parser,
+    parser: Callable[[Any, HttpContext], Any] = _default_response_parser,
+    log: HttpLogs = HttpLogs.DEFAULT,
 ) -> Callable[[Any], Any]:
     """
     POST 请求
@@ -97,6 +102,7 @@ def post(
         success=success,
         error_msg=error_msg,
         parser=parser,
+        log=log,
     )
 
 
@@ -105,7 +111,8 @@ def post_json(
     *,
     success: Callable[[Any], bool] = _default_success,
     error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
-    parser: Callable[[Any, Any], Any] = _default_response_parser,
+    parser: Callable[[Any, HttpContext], Any] = _default_response_parser,
+    log: HttpLogs = HttpLogs.DEFAULT,
 ) -> Callable[[Any], Any]:
     """
     POST JSON 请求
@@ -117,6 +124,7 @@ def post_json(
         success=success,
         error_msg=error_msg,
         parser=parser,
+        log=log,
     )
 
 
@@ -128,7 +136,8 @@ def http(
     *,
     success: Callable[[Any], bool] = _default_success,
     error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
-    parser: Callable[[Any, Any], Any] = _default_response_parser,
+    parser: Callable[[Any, HttpContext], Any] = _default_response_parser,
+    log: HttpLogs = HttpLogs.DEFAULT,
 ) -> Callable[[Any], Any]:
     """
     HTTP 请求
@@ -141,4 +150,5 @@ def http(
         success=success,
         error_msg=error_msg,
         resp_parser=parser,
+        log=log,
     )

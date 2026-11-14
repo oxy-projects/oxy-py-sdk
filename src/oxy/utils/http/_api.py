@@ -9,12 +9,13 @@ from httpx import Response, HTTPStatusError, Request, AsyncClient, QueryParams
 from pydantic import BaseModel
 
 from oxy.utils.http._model import (
-    ContentType, ContentTypeName, HttpUrl, HttpResponse, HttpRequestExtra, HttpRequest, RequestUrl,
+    ContentType, ContentTypeName, HttpUrl, HttpResponse, HttpRequestExtra,
+    HttpRequest, RequestUrl, HttpContext, HttpLogs,
 )
 from oxy.utils.lang import logger
 from oxy.utils.lang.charset import Charset
 
-log = logger.of(__name__)
+_log = logger.of(__name__)
 
 
 def _default_success(response) -> bool:
@@ -31,7 +32,7 @@ def _default_error_msg(response) -> Optional[str]:
     return str(response)
 
 
-def _default_response_parser(response, context) -> Any:
+def _default_response_parser(response, context: HttpContext) -> Any:
     return response
 
 
@@ -39,7 +40,7 @@ def _default_response_parser(response, context) -> Any:
 class ParsedRequest:
     url: HttpUrl
     headers: dict[str, Any]
-    context: dict[str, Any]
+    context: HttpContext
     req_data: str | bytes | dict[str, Any] | QueryParams | None = None
     resp_model: type[BaseModel] | None = None
     is_resp_json: bool = False
@@ -104,7 +105,7 @@ async def _common_request_parser(
 
 def _common_response_parser(
     http_response: Response,
-    context: dict[str, Any],
+    context: HttpContext,
     success: Callable[[Any], bool] = _default_success,
     error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
     resp_parser: Callable[[Any, Any], Any] = _default_response_parser,
@@ -234,7 +235,8 @@ def _http(
     *,
     success: Callable[[Any], bool],
     error_msg: Callable[[Any], Optional[str]],
-    resp_parser: Callable[[Any, Any], Any],
+    resp_parser: Callable[[Any, HttpContext], Any],
+    log: HttpLogs = HttpLogs.DEFAULT,
 ) -> Callable[[Any], Any]:
     """
     HTTP 请求
@@ -247,6 +249,7 @@ def _http(
         @wraps(func)
         async def wrapper(*args, **kwargs):
             nonlocal url
+            nonlocal log
 
             _resolved_url = url() if callable(url) else url
             _resolved_url = RequestUrl(_resolved_url) if isinstance(_resolved_url, str) else _resolved_url
@@ -260,10 +263,11 @@ def _http(
             except (JSONDecodeError, TypeError):
                 req_data_log = parsed_request.req_data
             try:
-                log.debug(
-                    'API请求开始，url=%s，request=%s',
-                    parsed_request.full_path, req_data_log
-                )
+                if log.req:
+                    _log.debug(
+                        'API请求开始，url=%s，request=%s',
+                        parsed_request.full_path, req_data_log
+                    )
                 resp_data = _common_response_parser(
                     http_response=(
                         _do_print_curl(
@@ -288,17 +292,22 @@ def _http(
                     resp_parser=resp_parser,
                     model=parsed_request.resp_model,
                 )
-                # log.info(
-                #     'API请求成功，url=%s，request=%s，response=%s',
-                #     parsed_request.full_path, req_data_log, json.dumps(resp_data)
-                # )
+                if log.resp:
+                    try:
+                        resp_data_log = json.dumps(resp_data, ensure_ascii=False)
+                    except (JSONDecodeError, TypeError):
+                        resp_data_log = resp_data
+                    _log.debug(
+                        'API请求成功，url=%s，request=%s，response=%s',
+                        parsed_request.full_path, req_data_log, resp_data_log
+                    )
                 return (
                     resp_data
                     if isinstance(resp_data, str) or not parsed_request.is_resp_json else
                     json.dumps(resp_data, ensure_ascii=False)
                 )
             except HTTPStatusError as err:
-                log.error(
+                _log.error(
                     'API请求失败，url=%s，request=%s，http_status=%s，response=%s',
                     parsed_request.full_path, req_data_log, err.response.status_code, err.response.text
                 )
