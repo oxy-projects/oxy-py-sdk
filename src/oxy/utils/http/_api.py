@@ -124,15 +124,14 @@ def _common_response_parser(
         raise HTTPStatusError(f'🐞 {error_msg(response)}', request=http_response.request, response=http_response)
 
 
-def _to_model(json_data: str | dict, model: type[BaseModel] | None):
-    if not model:
+def _to_model(json_data: str | dict | list[dict], model: type[BaseModel] | None):
+    if model is None:
         return json_data
-    if isinstance(json_data, dict):
-        return model.model_validate(json_data)
-    elif isinstance(json_data, str):
+    if isinstance(json_data, str):
         return model.model_validate_json(json_data)
-    else:
-        raise Exception("当前类型不支持转model：" + model.__name__)
+    if isinstance(json_data, dict | list):
+        return model.model_validate(json_data)
+    raise TypeError(f"当前类型不支持转 model：{type(json_data).__name__}")
 
 
 def _do_print_curl(
