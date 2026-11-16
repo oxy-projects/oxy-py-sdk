@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.0 - 2026-11-16
+
+- **不兼容变更**：`HttpRequestExtra` 参数 `is_resp_json` 更名为 `resp_json`，`is_resp_curl` 更名为 `resp_curl`；旧参数名不再支持，调用方需同步修改关键字参数及属性访问。
+- 同步更新内部请求解析、响应 JSON 序列化、cURL 调试处理及相关测试；两个参数的默认值仍为 `False`，功能行为不变。
+
 ## 1.0.5 - 2026-11-14
 
 - HTTP 响应模型 `resp_model` 支持 Pydantic `TypeAdapter` 实例，可通过 `TypeAdapter(list[Item])` 等方式校验和转换响应；JSON 字符串使用 `validate_json`，其他输入使用 `validate_python`。

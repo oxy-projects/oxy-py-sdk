@@ -43,8 +43,8 @@ class ParsedRequest:
     context: HttpContext
     req_data: str | bytes | dict[str, Any] | QueryParams | None = None
     resp_model: type[BaseModel] | TypeAdapter[Any] | None = None
-    is_resp_json: bool = False
-    is_resp_curl: bool = False
+    resp_json: bool = False
+    resp_curl: bool = False
 
     @cached_property
     def full_path(self):
@@ -98,8 +98,8 @@ async def _common_request_parser(
         context=extra_data.context,
         req_data=req_data,
         resp_model=extra_data.resp_model,
-        is_resp_json=extra_data.is_resp_json,
-        is_resp_curl=extra_data.is_resp_curl,
+        resp_json=extra_data.resp_json,
+        resp_curl=extra_data.resp_curl,
     )
 
 
@@ -283,7 +283,7 @@ def _http(
                             req_data=parsed_request.req_data,
                             headers=parsed_request.headers,
                         )
-                        if parsed_request.is_resp_curl else
+                        if parsed_request.resp_curl else
                         await _do_http(
                             url=str(parsed_request.full_path),
                             method=method,
@@ -310,7 +310,7 @@ def _http(
                     )
                 return (
                     resp_data
-                    if isinstance(resp_data, str) or not parsed_request.is_resp_json else
+                    if isinstance(resp_data, str) or not parsed_request.resp_json else
                     json.dumps(resp_data, ensure_ascii=False)
                 )
             except HTTPStatusError as err:

@@ -146,8 +146,8 @@ class HttpRequestExtra:
     context: HttpContext = field(default_factory=dict)
     query_params: QueryParams | None = None
     resp_model: type[BaseModel] | TypeAdapter[Any] | None = None
-    is_resp_json: bool = False
-    is_resp_curl: bool = False
+    resp_json: bool = False
+    resp_curl: bool = False
 
 
 class HttpResponse(Response):

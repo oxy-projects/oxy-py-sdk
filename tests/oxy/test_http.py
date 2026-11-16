@@ -117,7 +117,7 @@ def test_reusing_request_headers(captured_requests):
 def test_curl_debug_does_not_send_request(captured_requests):
     @api.get('https://example.test/search')
     async def search():
-        return HttpRequest(extra=HttpRequestExtra(is_resp_curl=True))
+        return HttpRequest(extra=HttpRequestExtra(resp_curl=True))
 
     result = asyncio.run(search())
     assert result.startswith("curl -L -X GET 'https://example.test/search'")
@@ -132,7 +132,7 @@ def test_http_response_error_status():
 def test_curl_get_query_params(captured_requests):
     @api.get(RequestUrl('https://example.test/search?tag=a&tag=b'))
     async def search():
-        return HttpRequest(data={'q': 'python'}, extra=HttpRequestExtra(is_resp_curl=True))
+        return HttpRequest(data={'q': 'python'}, extra=HttpRequestExtra(resp_curl=True))
 
     result = asyncio.run(search())
     assert "'https://example.test/search?tag=a&tag=b&q=python'" in result
