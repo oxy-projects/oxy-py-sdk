@@ -1,4 +1,5 @@
 import json
+import shlex
 from dataclasses import dataclass
 from functools import wraps, cached_property
 from http import HTTPMethod
@@ -142,31 +143,100 @@ def _to_model(json_data: Any, model: type[BaseModel] | TypeAdapter[Any] | None):
     return _m.root if isinstance(_m, RootModel) else _m
 
 
+def _request_kwargs(
+    url: str,
+    method: HTTPMethod,
+    content_type: ContentType,
+    charset: Charset,
+    req_data: str | bytes | dict[str, Any] | QueryParams | None,
+    headers: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """实际请求和 cURL 调试共用参数校验及序列化规则。"""
+    headers = dict(headers) if headers is not None else {}
+    # 优先校验请求头参数
+    _req_content_types = {
+        k: v for k, v in headers.items() if k.lower() == ContentTypeName.lower()
+    }
+    if _req_content_types:
+        raise ValueError(f"请不要在`headers`中设置`{ContentTypeName}`，而应该设置在`content_type`")
+    # 其次取方法参数
+    _content_type = (content_type if content_type != ContentType.ALL else None)
+
+    # 请求类型
+    is_only_query_params = only_http_with_query_params(method)
+    if req_data is not None and not is_only_query_params:
+        if not _content_type :
+            raise ValueError("请输入`HTTP`的`Content-Type`")
+        headers[ContentTypeName] = _content_type.with_charset(charset)
+    # 请求体类型
+    is_form_kv: bool = (content_type == ContentType.APPLICATION_FORM_URLENCODED)
+    is_json: bool = (content_type == ContentType.APPLICATION_JSON)
+
+    # 区分请求方法参数调用
+    _params = None
+    _form_kv_data = None
+    _json_data = None
+    _content_data: str | bytes | None = None
+    if is_only_query_params:
+        assert req_data is None or isinstance(req_data, (dict, QueryParams))
+        _params = req_data
+    else:
+        if is_form_kv:
+            assert req_data is None or isinstance(req_data, dict)
+            _form_kv_data = req_data
+        elif is_json:
+            if isinstance(req_data, str):
+                _content_data = req_data
+            else:
+                assert req_data is None or isinstance(req_data, dict)
+                _json_data = req_data
+        else:
+            assert not isinstance(req_data, QueryParams)
+            _content_data = (
+                json.dumps(req_data)
+                if isinstance(req_data, dict)
+                else req_data
+            )
+    return dict(
+        method=method,
+        url=url,
+        params=_params,
+        data=_form_kv_data,
+        json=_json_data,
+        content=_content_data,
+        headers=headers,
+    )
+
+
 def _do_print_curl(
     url: str,
     method: HTTPMethod,
     req_data: str | bytes | dict[str, Any] | QueryParams | None,
-    headers,
+    headers: dict[str, Any] | None,
+    content_type: ContentType = ContentType.ALL,
+    charset: Charset = Charset.UTF_8,
 ) -> Response:
-    if only_http_with_query_params(method):
-        assert isinstance(req_data, QueryParams)
-        url = str(HttpUrl(url, query_params=req_data).url)
-        req_data = None
-    headers_str = ''
-    if headers is not None and len(headers) > 0:
-        for _k, _v in headers.items():
-            headers_str += f"\n-H '{_k}: {_v}' \\"
-    req_data_str = ''
-    if req_data is not None:
-        req_data_str = '\n-d '
-        if isinstance(req_data, str):
-            req_data_str += f"'{req_data}'"
-        elif isinstance(req_data, dict):
-            req_data_str += f"'{json.dumps(req_data, ensure_ascii=False, indent=2)}'"
+    """生成可在 POSIX shell 执行的命令，不发送请求。"""
+    request = Request(**_request_kwargs(url, method, content_type, charset, req_data, headers))
+    parts = [f'curl -g -X {shlex.quote(str(method))} {shlex.quote(str(request.url))}']
+    if method == HTTPMethod.HEAD:
+        parts.append('--head')
+    parts.extend(f'-H {shlex.quote(f"{key}: {value}")}' for key, value in request.headers.items())
+    prefix = ''
+    if request.content:
+        try:
+            payload = request.content.decode('utf-8')
+        except UnicodeDecodeError:
+            payload = None
+        if payload is not None and '\x00' not in payload:
+            parts.append(f'--data-raw {shlex.quote(payload)}')
         else:
-            raise ValueError("CURL格式化req_data暂时只支持`str`和`dict`")
-    curl_resp_content = f"curl -L -X {str(method)} '{url}' \\{headers_str}{req_data_str}"
-    return HttpResponse(200, curl_resp_content, request=Request(method, url))
+            # Shell 参数不能包含 NUL；通过 POSIX printf 的八进制转义保留原始字节。
+            escaped = ''.join(f'\\0{byte:03o}' for byte in request.content)
+            prefix = f"printf '%b' {shlex.quote(escaped)} | "
+            parts.append('--data-binary @-')
+    curl_resp_content = prefix + ' \\\n'.join(parts)
+    return HttpResponse(200, curl_resp_content, request=request)
 
 
 async def _do_http(
@@ -177,65 +247,13 @@ async def _do_http(
     req_data: str | bytes | dict[str, Any] | QueryParams | None = None,
     headers: dict[str, Any] | None = None,
 ) -> Response:
-    headers = dict(headers) if headers is not None else {}
+    kwargs = _request_kwargs(url, method, content_type, charset, req_data, headers)
     async with AsyncClient(http2=True) as client:
-        # 优先校验请求头参数
-        _req_content_types = {
-            k: v for k, v in headers.items() if k.lower() == ContentTypeName.lower()
-        }
-        if _req_content_types:
-            raise ValueError(f"请不要在`headers`中设置`{ContentTypeName}`，而应该设置在`content_type`")
-        # 其次取方法参数
-        _content_type = (content_type if content_type != ContentType.ALL else None)
-
-        # 请求类型
-        is_only_query_params = only_http_with_query_params(method)
-        if req_data is not None and not is_only_query_params:
-            if not _content_type :
-                raise ValueError("请输入`HTTP`的`Content-Type`")
-            headers[ContentTypeName] = _content_type.with_charset(charset)
-        # 请求体类型
-        is_form_kv: bool = (content_type == ContentType.APPLICATION_FORM_URLENCODED)
-        is_json: bool = (content_type == ContentType.APPLICATION_JSON)
-
-        # 区分请求方法参数调用
-        _params = None
-        _form_kv_data = None
-        _json_data = None
-        _content_data: str | bytes | None = None
-        if is_only_query_params:
-            assert req_data is None or isinstance(req_data, (dict, QueryParams))
-            _params = req_data
-        else:
-            if is_form_kv:
-                assert req_data is None or isinstance(req_data, dict)
-                _form_kv_data = req_data
-            elif is_json:
-                if isinstance(req_data, str):
-                    _content_data = req_data
-                else:
-                    assert req_data is None or isinstance(req_data, dict)
-                    _json_data = req_data
-            else:
-                assert not isinstance(req_data, QueryParams)
-                _content_data = (
-                    json.dumps(req_data)
-                    if isinstance(req_data, dict)
-                    else req_data
-                )
-        return await client.request(
-            method=method,
-            url=url,
-            params=_params,
-            data=_form_kv_data,
-            json=_json_data,
-            content=_content_data,
-            headers=headers,
-        )
+        return await client.request(**kwargs)
 
 
 def _http(
-    url: str | RequestUrl | Callable[[], RequestUrl],
+    url: str | RequestUrl | Callable[[], str | RequestUrl],
     method: HTTPMethod = HTTPMethod.GET,
     content_type: ContentType = ContentType.ALL,
     charset: Charset = Charset.UTF_8,
@@ -275,23 +293,23 @@ def _http(
                         'API请求开始，url=%s，request=%s',
                         parsed_request.full_path, req_data_log
                     )
+                if parsed_request.resp_curl:
+                    return _do_print_curl(
+                        url=parsed_request.full_path,
+                        method=method,
+                        req_data=parsed_request.req_data,
+                        headers=parsed_request.headers,
+                        content_type=content_type,
+                        charset=charset,
+                    ).text
                 resp_data = _common_response_parser(
-                    http_response=(
-                        _do_print_curl(
-                            url=str(parsed_request.full_path),
-                            method=method,
-                            req_data=parsed_request.req_data,
-                            headers=parsed_request.headers,
-                        )
-                        if parsed_request.resp_curl else
-                        await _do_http(
-                            url=str(parsed_request.full_path),
-                            method=method,
-                            content_type=content_type,
-                            charset=charset,
-                            req_data=parsed_request.req_data,
-                            headers=parsed_request.headers,
-                        )
+                    http_response=await _do_http(
+                        url=parsed_request.full_path,
+                        method=method,
+                        content_type=content_type,
+                        charset=charset,
+                        req_data=parsed_request.req_data,
+                        headers=parsed_request.headers,
                     ),
                     context=parsed_request.context,
                     success=success,

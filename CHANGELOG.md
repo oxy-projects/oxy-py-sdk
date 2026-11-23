@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.1 - 2026-11-23
+
+- 修复 HTTP 装饰器 `get`、`get_json`、`post`、`post_json`、`http` 及内部请求函数的 URL 类型声明，支持返回 `str` 或 `RequestUrl` 的无参 callable；现有延迟 URL 的运行行为保持不变。
+- 修复 cURL 调试命令缺少 Content-Type、表单被输出为 JSON、Shell 特殊字符未转义及末尾存在多余续行符的问题；调试与实际请求共用参数校验和序列化规则。
+- cURL 调试支持二进制请求体，保留换行及 NUL 等原始字节；文本请求体以 `--data-raw` 传递，二进制请求体通过 POSIX `printf` 管道传递。
+- 生成命令禁用 URL globbing，HEAD 请求使用 `--head`；移除默认的 `-L`，与 SDK 实际请求默认不跟随重定向的行为一致。
+- **调试模式行为修正**：`resp_curl=True` 直接返回命令字符串，不发送 HTTP 请求，也不再执行 `success`、`parser`、`resp_model` 和 `resp_json` 的响应处理。调用方不应依赖旧的 cURL 字符串格式或对调试结果执行业务解析。
+- 补充 Shell 执行、JSON / 表单 / 二进制请求体、查询参数、HEAD 和调试响应处理的离线回归测试；完善可选依赖安装及开发验证说明。
+
 ## 1.1.0 - 2026-11-16
 
 - **不兼容变更**：`HttpRequestExtra` 参数 `is_resp_json` 更名为 `resp_json`，`is_resp_curl` 更名为 `resp_curl`；旧参数名不再支持，调用方需同步修改关键字参数及属性访问。

@@ -42,7 +42,7 @@ def origin_response(
 
 
 def get(
-    url: str | RequestUrl | Callable[[], RequestUrl],
+    url: str | RequestUrl | Callable[[], str | RequestUrl],
     *,
     success: Callable[[Any], bool] = _default_success,
     error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
@@ -63,7 +63,7 @@ def get(
 
 
 def get_json(
-    url: str | RequestUrl | Callable[[], RequestUrl],
+    url: str | RequestUrl | Callable[[], str | RequestUrl],
     *,
     success: Callable[[Any], bool] = _default_success,
     error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
@@ -85,7 +85,7 @@ def get_json(
 
 
 def post(
-    url: str | RequestUrl | Callable[[], RequestUrl],
+    url: str | RequestUrl | Callable[[], str | RequestUrl],
     *,
     success: Callable[[Any], bool] = _default_success,
     error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
@@ -107,7 +107,7 @@ def post(
 
 
 def post_json(
-    url: str | RequestUrl | Callable[[], RequestUrl],
+    url: str | RequestUrl | Callable[[], str | RequestUrl],
     *,
     success: Callable[[Any], bool] = _default_success,
     error_msg: Callable[[Any], Optional[str]] = _default_error_msg,
@@ -129,7 +129,7 @@ def post_json(
 
 
 def http(
-    url: str | RequestUrl | Callable[[], RequestUrl],
+    url: str | RequestUrl | Callable[[], str | RequestUrl],
     method: HTTPMethod = HTTPMethod.GET,
     content_type: ContentType = ContentType.ALL,
     charset: Charset = Charset.UTF_8,

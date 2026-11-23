@@ -1,9 +1,15 @@
 import asyncio
+import base64
+import shlex
+import subprocess
+import sys
+from http import HTTPMethod
 import json
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import httpx
 import pytest
+from pydantic import RootModel
 
 from oxy.utils.http import api, ContentType, HttpRequest, HttpRequestExtra, HttpResponse
 from oxy.utils.http._model import RequestUrl
@@ -28,6 +34,7 @@ def captured_requests():
     'https://example.test/search',
     RequestUrl('https://example.test/search'),
     lambda: RequestUrl('https://example.test/search'),
+    lambda: 'https://example.test/search',
 ])
 def test_get(url, captured_requests):
     @api.get(url)
@@ -60,11 +67,12 @@ def test_post_json_headers_and_parser(captured_requests):
     assert json.loads(request.content) == {'ping': 1}
 
 
-def test_content_type_header_rejected(captured_requests):
+@pytest.mark.parametrize('debug', [False, True])
+def test_content_type_header_rejected(captured_requests, debug):
     @api.post_json(RequestUrl('https://example.test/echo'))
     async def echo():
         return HttpRequest(data={'ping': 1}, extra=HttpRequestExtra(
-            headers={'content-type': ContentType.APPLICATION_FORM_URLENCODED},
+            headers={'content-type': ContentType.APPLICATION_FORM_URLENCODED}, resp_curl=debug,
         ))
 
     with pytest.raises(ValueError, match='headers'):
@@ -120,7 +128,7 @@ def test_curl_debug_does_not_send_request(captured_requests):
         return HttpRequest(extra=HttpRequestExtra(resp_curl=True))
 
     result = asyncio.run(search())
-    assert result.startswith("curl -L -X GET 'https://example.test/search'")
+    assert shlex.split(result)[:5] == ['curl', '-g', '-X', 'GET', 'https://example.test/search']
     assert captured_requests == []
 
 
@@ -135,7 +143,7 @@ def test_curl_get_query_params(captured_requests):
         return HttpRequest(data={'q': 'python'}, extra=HttpRequestExtra(resp_curl=True))
 
     result = asyncio.run(search())
-    assert "'https://example.test/search?tag=a&tag=b&q=python'" in result
+    assert shlex.split(result)[4] == 'https://example.test/search?tag=a&tag=b&q=python'
     assert '\n-d ' not in result
     assert captured_requests == []
 
@@ -168,3 +176,102 @@ def test_post_extra_query_params(captured_requests):
     params = captured_requests[0].url.params
     assert params['token'] == 'abc'
     assert params.get_list('tag') == ['a', 'b']
+
+
+def _run_curl_stub(command):
+    """执行生成命令，但用 shell 函数替代 curl，捕获参数及 stdin，不访问网络。"""
+    script = (
+        "import base64,json,sys; "
+        "print(json.dumps({'args':sys.argv[1:],"
+        "'stdin':base64.b64encode(sys.stdin.buffer.read()).decode()}))"
+    )
+    shell = f'curl() {{ {shlex.quote(sys.executable)} -c {shlex.quote(script)} "$@"; }}\n{command}'
+    result = subprocess.run(['/bin/sh', '-c', shell], input=b'', capture_output=True, check=True)
+    return json.loads(result.stdout)
+
+
+@pytest.mark.parametrize('factory,data', [
+    (api.post_json, {'name': "O'Reilly", 'value': '中文\n$(printf injected)`printf injected`'}),
+    (api.post, {'name': "O'Reilly & 中文", 'tags': ['a', 'b'], 'empty': ''}),
+    (api.post_json, {}),
+    (api.post_json, None),
+    (api.post, {}),
+    (api.post, None),
+    (api.post_json, '@not-a-file\r\nnext line'),
+    (lambda url: api.http(url, HTTPMethod.POST, ContentType.TEXT_PLAIN), '@not-a-file\r\nnext line'),
+    (lambda url: api.http(url, HTTPMethod.POST, ContentType.APPLICATION_OCTET_STREAM), b'\x00\xff\r\n\x01'),
+    (lambda url: api.http(url, HTTPMethod.POST, ContentType.APPLICATION_OCTET_STREAM), b''),
+])
+def test_curl_matches_actual_request(factory, data, captured_requests):
+    debug = False
+    headers = {'X-Token': "O'Reilly $(printf injected)`printf injected`"}
+
+    @factory('https://example.test/items?tag=a&tag=b')
+    async def request():
+        return HttpRequest(data=data, extra=HttpRequestExtra(headers=headers, resp_curl=debug))
+
+    asyncio.run(request())
+    actual = captured_requests[0]
+    debug = True
+    command = asyncio.run(request())
+    assert len(captured_requests) == 1
+    assert not command.endswith('\\')
+    result = _run_curl_stub(command)
+    args = result['args']
+    assert args[:4] == ['-g', '-X', actual.method, str(actual.url)]
+    assert '-L' not in args
+    curl_headers = {}
+    for index, arg in enumerate(args):
+        if arg == '-H':
+            key, value = args[index + 1].split(': ', 1)
+            curl_headers[key] = value
+    for key, value in curl_headers.items():
+        assert actual.headers[key] == value
+    if actual.content:
+        if '--data-raw' in args:
+            payload = args[args.index('--data-raw') + 1].encode()
+        else:
+            assert args[args.index('--data-binary') + 1] == '@-'
+            payload = base64.b64decode(result['stdin'])
+        assert payload == actual.content
+    else:
+        assert '--data-raw' not in args
+        assert '--data-binary' not in args
+    assert headers == {'X-Token': "O'Reilly $(printf injected)`printf injected`"}
+
+
+@pytest.mark.parametrize('method', [HTTPMethod.GET, HTTPMethod.HEAD, HTTPMethod.OPTIONS])
+def test_curl_query_methods(method, captured_requests):
+    @api.http('https://example.test/search?tag=a&tag=b', method)
+    async def request():
+        return HttpRequest(
+            data={'q': "O'Reilly & 中文", 'filter[]': ['a', 'b']},
+            extra=HttpRequestExtra(resp_curl=True),
+        )
+
+    result = _run_curl_stub(asyncio.run(request()))
+    args = result['args']
+    assert args[:3] == ['-g', '-X', str(method)]
+    assert ('--head' in args) == (method == HTTPMethod.HEAD)
+    params = httpx.URL(args[3]).params
+    assert params.get_list('tag') == ['a', 'b']
+    assert params['q'] == "O'Reilly & 中文"
+    assert params.get_list('filter[]') == ['a', 'b']
+    assert '--data-raw' not in args
+    assert captured_requests == []
+
+
+def test_curl_skips_business_response_processing(captured_requests):
+    success = Mock(side_effect=AssertionError('must not check a debug response'))
+    parser = Mock(side_effect=AssertionError('must not parse a debug response'))
+
+    @api.post_json('https://example.test/echo', success=success, parser=parser)
+    async def request():
+        return HttpRequest(data={}, extra=HttpRequestExtra(
+            resp_curl=True, resp_json=True, resp_model=RootModel[int],
+        ))
+
+    assert _run_curl_stub(asyncio.run(request()))['args'][2] == 'POST'
+    success.assert_not_called()
+    parser.assert_not_called()
+    assert captured_requests == []

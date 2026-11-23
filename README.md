@@ -55,6 +55,16 @@ async def fetch():
 result = asyncio.run(fetch())
 ```
 
+URL 也支持无参 callable，返回字符串或 `RequestUrl`，每次调用接口时重新解析，例如：
+
+```python
+@api.get(lambda: f"{settings.api_host}/users")
+async def fetch_users():
+    return {"page": 1}
+```
+
+上例中的 `settings` 由调用方提供；SDK 不负责监听或固定应用配置。
+
 HTTP 日志通过装饰器的 `log` 参数控制，需由应用配置日志处理器并启用 DEBUG 级别：
 
 ```python
@@ -67,6 +77,8 @@ async def fetch_with_logs():
 
 `HttpLogs.DEFAULT`（默认值）仅记录请求，`HttpLogs.ALL` 同时记录请求和成功响应，
 `HttpLogs.NONE` 关闭这两类日志。HTTP 状态错误仍记录 ERROR 日志。
+
+设置 `HttpRequestExtra(resp_curl=True)` 时，只生成适用于 POSIX shell 的 cURL 命令，不发送请求，也不调用业务响应处理器或转换响应模型。命令保留请求的查询参数、Content-Type 和请求体；生成结果不额外启用重定向，二进制请求体通过 `printf` 管道传递。
 
 安装 `oxy-py-sdk[setting]` 后：
 
@@ -99,7 +111,7 @@ uv sync --locked --extra http --extra setting
 
 ## 发布
 
-完整配置及操作步骤见 [发布说明](https://github.com/oxy-projects/oxy-py-sdk/main/RELEASING.md)，版本记录见 [CHANGELOG](https://github.com/oxy-projects/oxy-py-sdk/blob/main/CHANGELOG.md)。
+完整配置及操作步骤见 [发布说明](https://github.com/oxy-projects/oxy-py-sdk/blob/main/RELEASING.md)，版本记录见 [CHANGELOG](https://github.com/oxy-projects/oxy-py-sdk/blob/main/CHANGELOG.md)。
 发布 GitHub Release 后自动构建并发布到 PyPI。
 版本来源为 `pyproject.toml`，Release 标签必须是 `v` 加版本号，例如 `v1.0.0`。
 
