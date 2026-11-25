@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.2 - 2026-11-26
+
+- `hide_error`、`project_path`、`setting.config`、`setting.read` 和 `cached_excel` 支持装饰 `async def`，现有同步调用方式继续可用。
+- `hide_error` 可捕获协程执行期间抛出的指定异常。使用默认异常类型时，任务取消继续向外传播。
+- 异步 `setting.read` 支持同步或异步的配置提供器及解析器，可直接与异步 `setting.config` 组合。配置缺失时，等待默认值返回后再校验；同步函数使用异步回调会在装饰时触发 `TypeError`。
+- 异步 YAML 读取和 Excel 读写在工作线程中执行。异步 Excel 缓存未命中时等待函数返回，写入完成后原子替换目标文件，避免并发读取到不完整的缓存。
+- 增加异步异常处理、配置回调组合与默认值校验、Excel 并发写入和失败重试的回归测试。
+
 ## 1.1.1 - 2026-11-23
 
 - 修复 HTTP 装饰器 `get`、`get_json`、`post`、`post_json`、`http` 及内部请求函数的 URL 类型声明，支持返回 `str` 或 `RequestUrl` 的无参 callable；现有延迟 URL 的运行行为保持不变。
