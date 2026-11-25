@@ -1,11 +1,15 @@
+import asyncio
 import unittest
 from datetime import datetime, timedelta
+from inspect import iscoroutinefunction
+from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from oxy.utils.lang import timestamp_millis, gen_uuid_str, hide_error, split
 from oxy.utils.data._split import split as split_dataframe
-from oxy.utils.lang.path import traverse_folder
+from oxy.utils.lang.path import project_path, traverse_folder
 from tests.config import project_resources
 
 
@@ -16,6 +20,40 @@ def raise_exp():
 @hide_error()
 def raise_exp_hide():
     raise_exp()
+
+
+def test_hide_error_async():
+    @hide_error(ValueError)
+    async def load(value):
+        await asyncio.sleep(0)
+        if isinstance(value, BaseException):
+            raise value
+        return value
+
+    assert iscoroutinefunction(load)
+    assert asyncio.run(load(value=42)) == 42
+    assert asyncio.run(load(ValueError('after await'))) is None
+    with pytest.raises(RuntimeError, match='after await'):
+        asyncio.run(load(RuntimeError('after await')))
+
+
+def test_hide_error_async_propagates_cancellation():
+    @hide_error()
+    async def load():
+        asyncio.current_task().cancel()
+        await asyncio.sleep(0)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(load())
+
+
+def test_project_path_async():
+    @project_path(parent_level=1)
+    async def resolve():
+        raise AssertionError('project_path replaces the function body')
+
+    assert iscoroutinefunction(resolve)
+    assert asyncio.run(resolve()) == Path(__file__).parent.parent
 
 
 class LangTestCase(unittest.TestCase):

@@ -11,14 +11,21 @@ def project_path(*, parent_level: int = 0):
     :param parent_level: 有几层父目录
     """
     def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            nonlocal parent_level
-
+        def resolve_path():
             func_path = Path(inspect.getsourcefile(func)) # type: ignore
-            for i in range(parent_level + 1):
+            for _ in range(parent_level + 1):
                 func_path = func_path.parent
             return func_path
+
+        if inspect.iscoroutinefunction(func):
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                return resolve_path()
+            return async_wrapper
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return resolve_path()
         return wrapper
     return decorator
 

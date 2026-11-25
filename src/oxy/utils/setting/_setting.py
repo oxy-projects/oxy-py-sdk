@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from asyncio import to_thread
+from collections.abc import Awaitable
 from functools import wraps
+from inspect import isawaitable, iscoroutinefunction
 from pathlib import Path
 from typing import Callable, Any, Optional, TYPE_CHECKING
 
@@ -26,27 +29,33 @@ def _redact_for_log(prop_name: str, value: Any) -> Any:
 
 def config(*, config_dir: str | Path, file_name: str = None):
     """
-    项目加载配置
+    加载项目配置。装饰异步函数时在线程中读取 YAML。
     :param config_dir: 配置文件目录
     :param file_name: 配置文件名称，默认为：settings.yaml
     """
     def decorator(func):
         _settings: Optional[dict] = None
 
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            nonlocal config_dir
-            nonlocal file_name
+        def get_settings():
             nonlocal _settings
 
             if _settings:
                 return _settings
-            if not isinstance(config_dir, Path):
-                config_dir = Path(config_dir)
-            if not file_name:
-                file_name = DEFAULT_CONFIG_FILE_NAME
-            _settings = load_yaml(config_dir.joinpath(file_name))
+            directory = config_dir if isinstance(config_dir, Path) else Path(config_dir)
+            _settings = load_yaml(directory.joinpath(file_name or DEFAULT_CONFIG_FILE_NAME))
             return _settings
+
+        if iscoroutinefunction(func):
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                if _settings:
+                    return _settings
+                return await to_thread(get_settings)
+            return async_wrapper
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return get_settings()
         return wrapper
     return decorator
 
@@ -60,53 +69,82 @@ class DefaultSetting:
         return {}
 
 
-def read(prop_name: str, *,
-         parser: Callable[[Any], Any] = None,
-         settings: dict | Callable[[], dict] = None) -> Callable[[Any], Any]:
+def read(
+    prop_name: str, *,
+    parser: Callable[[Any], Any | Awaitable[Any]] | None = None,
+    settings: dict | Callable[[], dict | Awaitable[dict]] | None = None,
+) -> Callable[[Any], Any]:
     """
     注解形式注入配置值，如果没找到对应配置则按照方法执行结果返回
     :param prop_name: 配置键，英文句号“.”分隔
-    :param parser: 配置转换器
-    :param settings: 默认读取的配置，如果没有则按照方法返回值获取
+    :param parser: 配置转换器，装饰 async def 时可以使用异步转换器
+    :param settings: 配置字典或配置提供器，装饰 async def 时可以使用异步提供器
     """
     def decorator(func):
-        # 增加缓存
-        cache = dict()
+        cache = {}
+
+        def validate_key():
+            if not prop_name:
+                raise IllegalArgumentException(f'方法<{func.__name__}>请输入需要读取的配置键')
+
+        def lookup_value(value):
+            for key in prop_name.split('.'):
+                value = value.get(key, None)
+                if value is None:
+                    break
+            return value
+
+        def validate_default(value):
+            if value is None or value == '':
+                raise IllegalArgumentException(
+                    f'方法<{func.__name__}>未查询到<{prop_name}>的配置值，请完善配置或在方法指定默认值'
+                )
+            return value
+
+        def cache_value(value):
+            cache[prop_name] = value
+            log.debug('项目配置加载成功，%s：%s', prop_name, _redact_for_log(prop_name, value))
+            return value
+
+        if iscoroutinefunction(func):
+            source = settings
+            settings_data = None
+
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                nonlocal settings_data
+                validate_key()
+                if prop_name in cache:
+                    return cache[prop_name]
+                if settings_data is None:
+                    provider = source or DefaultSetting().get
+                    raw_settings = provider if isinstance(provider, dict) else provider()
+                    settings_data = await raw_settings if isawaitable(raw_settings) else raw_settings
+                value = lookup_value(settings_data)
+                if value is None:
+                    return validate_default(await func(*args, **kwargs))
+                if parser:
+                    parsed = parser(value)
+                    value = await parsed if isawaitable(parsed) else parsed
+                return cache_value(value)
+            return async_wrapper
+
+        for name, callback in (('settings', settings), ('parser', parser)):
+            if iscoroutinefunction(callback) or iscoroutinefunction(getattr(callback, '__call__', None)):
+                raise TypeError(f'异步 {name} 回调需要装饰 async def 函数')
 
         @wraps(func)
         def wrapper(*args, **kwargs):
             nonlocal settings
-            nonlocal func
-            nonlocal cache
-            # 没有配置key，则按照方法默认返回
-            if not prop_name:
-                raise IllegalArgumentException(f'方法<{func.__name__}>请输入需要读取的配置键')
-            # 命中配置缓存，则直接返回
+            validate_key()
             if prop_name in cache:
                 return cache[prop_name]
-            # 解析配置
             settings = settings or DefaultSetting().get
             settings = settings if isinstance(settings, dict) else settings()
-            keys = prop_name.split('.')
-            value = settings
-            for key in keys:
-                value = value.get(key, None)
-                if value is None:
-                    break
-            # 无配置，则按照方法默认返回
+            value = lookup_value(settings)
             if value is None:
-                fun_val = func(*args, **kwargs)
-                if fun_val is None or fun_val == '':
-                    raise IllegalArgumentException(
-                        f'方法<{func.__name__}>未查询到<{prop_name}>的配置值，请完善配置或在方法指定默认值'
-                    )
-                return fun_val
-            # 配置存在，如果有转换器则进行转换
-            value = value if not parser else parser(value)
-            # 设置缓存并返回
-            cache[prop_name] = value
-            log.debug('项目配置加载成功，%s：%s', prop_name, _redact_for_log(prop_name, value))
-            return value
+                return validate_default(func(*args, **kwargs))
+            return cache_value(value if not parser else parser(value))
         return wrapper
     return decorator
 
